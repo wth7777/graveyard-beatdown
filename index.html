@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Graveyard Beatdown — Ghosts 'n Goblins Tribute</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; }
+    #game-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; z-index: 10; }
+    canvas { display: block; }
+    .loading-overlay {
+      position: fixed; inset: 0; background: #1a1a1a; color: #e0e0e0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; font-family: 'Courier New, monospace';
+    }
+    .loading-bar { width: 300px; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-top: 16px; }
+    .loading-fill { width: 0%; height: 100%; background: #4ade80; transition: width 0.1s; }
+    #touch-controls {
+      position: absolute; bottom: 20px; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: flex-end;
+      padding: 10px; pointer-events: auto; z-index: 100;
+    }
+    .dpad { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .dpad-row { display: flex; align-items: center; gap: 4px; }
+    .dpad-spacer { width: 44px; height: 44px; }
+    .dpad-center { width: 44px; height: 44px; }
+    .dpad-btn {
+      width: 44px; height: 44px; background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 10px;
+      color: #ffffff; font-size: 20px; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none;
+    }
+    .dpad-btn:active { background: rgba(255, 255, 255, 0.35); }
+    .action-buttons { display: flex; gap: 12px; align-items: flex-end; }
+    .action-btn {
+      width: 56px; height: 56px; border-radius: 28px;
+      border: 2px solid rgba(255, 255, 255, 0.5); color: #ffffff;
+      font-size: 16px; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none;
+    }
+    .action-btn.attack { background: rgba(255, 80, 80, 0.25); border-color: rgba(255, 120, 120, 0.6); }
+    .action-btn.jump { background: rgba(80, 120, 255, 0.25); border-color: rgba(120, 180, 255, 0.6); }
+    .action-btn.special { background: rgba(200, 80, 255, 0.25); border-color: rgba(240, 120, 255, 0.6); }
+    .action-btn:active { background: rgba(255, 255, 255, 0.2); }
+    #diag-panel {
+      position: fixed; top: 10px; left: 10px; z-index: 99999;
+      background: rgba(0, 0, 0, 0.9); color: #00ff00;
+      font-family: 'Courier New, monospace'; font-size: 14px;
+      padding: 10px; border: 2px solid #00ff00; border-radius: 4px;
+      max-width: 400px; display: none;
+    }
+    #diag-panel .stage { margin: 4px 0; }
+    #diag-panel .stage.ok { color: #00ff00; }
+    #diag-panel .stage.fail { color: #ff0000; }
+    #diag-panel .stage.info { color: #ffff00; }
+  </style>
+  <script type="module" crossorigin src="./src/main.js"></script>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="touch-controls">
+    <div class="dpad">
+      <div class="dpad-row">
+        <div class="dpad-spacer"></div>
+        <button id="btn-up" class="dpad-btn up">▲</button>
+        <div class="dpad-spacer"></div>
+      </div>
+      <div class="dpad-row">
+        <button id="btn-left" class="dpad-btn left">◀</button>
+        <div class="dpad-center"></div>
+        <button id="btn-right" class="dpad-btn right">▶</button>
+      </div>
+      <div class="dpad-row">
+        <div class="dpad-spacer"></div>
+        <button id="btn-down" class="dpad-btn down">▼</button>
+        <div class="dpad-spacer"></div>
+      </div>
+    </div>
+    <div class="action-buttons">
+      <button id="btn-jump" class="action-btn jump">JUMP</button>
+      <button id="btn-attack" class="action-btn attack">ATTACK</button>
+    </div>
+  </div>
+  <div id="diag-panel">
+    <div style="font-weight: bold; color: #ffffff; margin-bottom: 8px;">GRAVEYARD BEATDOWN — DIAGNOSTICS</div>
+    <div id="diag-stage-init" class="stage info">INIT: HTML loaded</div>
+    <div id="diag-stage-phaser" class="stage info">PHASER: waiting...</div>
+    <div id="diag-stage-boot" class="stage info">BOOT: waiting...</div>
+    <div id="diag-stage-main" class="stage info">MAIN: waiting...</div>
+    <div id="diag-errors" class="stage fail" style="display:none;"></div>
+  </div>
+  <div id="loading-overlay" class="loading-overlay">
+    <div style="font-size: 24px; font-weight: bold; letter-spacing: 2px;">GRAVEYARD BEATDOWN</div>
+    <div style="font-size: 14px; margin-top: 8px; opacity: 0.8;">Loading assets...</div>
+    <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+  </div>
+  <script>
+    window.__hideLoading = function () {
+      const el = document.getElementById('loading-overlay')
+      if (el) { el.style.transition = 'opacity 0.3s ease'; el.style.opacity = '0'; setTimeout(() => { el.style.display = 'none' }, 300) }
+    }
+    window.__showError = function (msg) {
+      const el = document.getElementById('loading-overlay')
+      if (el) { el.innerHTML = '<div style="color:#ff4444;font-weight:bold;">LOAD ERROR</div><div style="color:#e0e0e0;margin-top:8px;">' + msg + '</div>'; el.style.background = '#1a0000' }
+      console.error('GAME LOAD ERROR:', msg)
+    }
+    setTimeout(function () {
+      const el = document.getElementById('loading-overlay')
+      if (el && el.style.display !== 'none') { window.__hideLoading() }
+    }, 10000)
+  </script>
+</body>
+</html>
