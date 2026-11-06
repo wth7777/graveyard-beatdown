@@ -32,6 +32,9 @@ export default class MainScene extends Phaser.Scene {
   create() {
     window.__diag?.setStage('diag-stage-main', 'ok', 'MAIN: Running')
 
+    // Fallback background color
+    this.cameras.main.setBackgroundColor('#1a0a1a')
+
     this.setupBackground()
     this.setupPlatforms()
     this.setupPlayer()
@@ -304,7 +307,8 @@ export default class MainScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.levelWidth, this.levelHeight)
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1)
     this.cameras.main.setDeadzone(100, 50)
-    this.cameras.main.setZoom(2.5)
+    this.cameras.main.setZoom(1.8)
+    this.cameras.main.centerOn(this.player.x, this.player.y)
   }
 
   setupLevel() {
