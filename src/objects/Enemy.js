@@ -16,6 +16,7 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
     this.attackRange = 200
     this.detectionRange = 300
     this.facingRight = true
+    this.difficulty = 0 // 0 to 1
 
     this.setScale(1)
     this.setDepth(5)
@@ -23,13 +24,10 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
   }
 
   getMaxHealth() {
-    switch (this.type) {
-      case 'zombie': return 2
-      case 'skeleton': return 1
-      case 'demon': return 4
-      case 'boss': return 15
-      default: return 2
-    }
+    const baseHealth = {
+      zombie: 2, skeleton: 1, demon: 4, boss: 15
+    }[this.type] || 2
+    return Math.floor(baseHealth * (1 + this.difficulty * 2))
   }
 
   getScoreValue() {
@@ -45,28 +43,31 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
   setupBehavior() {
     switch (this.type) {
       case 'zombie':
-        this.moveSpeed = 40
+        this.moveSpeed = 40 + this.difficulty * 30
         this.attackRange = 30
-        this.attackDamage = 1
+        this.attackDamage = 1 + Math.floor(this.difficulty * 2)
         break
       case 'skeleton':
-        this.moveSpeed = 60
+        this.moveSpeed = 60 + this.difficulty * 40
         this.attackRange = 30
-        this.attackDamage = 1
+        this.attackDamage = 1 + Math.floor(this.difficulty * 1)
         break
       case 'demon':
-        this.moveSpeed = 80
-        this.attackRange = 250
-        this.attackDamage = 1
+        this.moveSpeed = 80 + this.difficulty * 40
+        this.attackRange = 250 + this.difficulty * 100
+        this.attackDamage = 1 + Math.floor(this.difficulty * 2)
         this.canFly = true
         break
       case 'boss':
-        this.moveSpeed = 30
-        this.attackRange = 400
-        this.attackDamage = 2
+        this.moveSpeed = 30 + this.difficulty * 30
+        this.attackRange = 400 + this.difficulty * 200
+        this.attackDamage = 2 + Math.floor(this.difficulty * 3)
         this.phase = 1
         break
     }
+
+    // Swarming behavior - enemies near each other move as a group
+    this.swarmCooldown = 0
   }
 
   update(player) {
@@ -90,6 +91,22 @@ export default class Enemy extends Phaser.GameObjects.Sprite {
 
   updateGroundEnemy(player, dist, canSee) {
     if (this.state === 'stunned') return
+
+    // Swarming behavior - coordinate with nearby enemies
+    if (this.scene.time.now > this.swarmCooldown) {
+      this.swarmCooldown = this.scene.time.now + 500
+      const nearby = this.scene.enemies.getChildren().filter(e =>
+        e.active && e !== this && e.type !== 'demon' && e.type !== 'boss' &&
+        Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < 150
+      )
+      if (nearby.length > 0) {
+        // Move towards center of swarm
+        const avgX = nearby.reduce((sum, e) => sum + e.x, 0) / nearby.length
+        const avgY = nearby.reduce((sum, e) => sum + e.y, 0) / nearby.length
+        const swarmDir = avgX > this.x ? 1 : -1
+        this.setVelocityX(swarmDir * this.moveSpeed * 0.5)
+      }
+    }
 
     if (canSee && dist < this.attackRange) {
       // Attack

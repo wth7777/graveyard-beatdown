@@ -157,6 +157,18 @@ export default class BootScene extends Phaser.Scene {
     heart.fillRect(4, 6, 14, 10)
     heart.generateTexture('heart', 24, 24)
 
+    // Gold coin
+    const coin = this.make.graphics({ x: 0, y: 0, add: false })
+    coin.fillStyle(0xffd700, 1)
+    coin.fillCircle(12, 12, 12)
+    coin.fillStyle(0xffaa00, 1)
+    coin.fillCircle(12, 12, 8)
+    coin.fillStyle(0xffcc00, 1)
+    coin.fillCircle(12, 12, 4)
+    coin.lineStyle(2, 0xff8800, 1)
+    coin.strokeCircle(12, 12, 10)
+    coin.generateTexture('coin', 24, 24)
+
     // Armor shield
     const shield = this.make.graphics({ x: 0, y: 0, add: false })
     shield.fillStyle(0xffd700, 1)

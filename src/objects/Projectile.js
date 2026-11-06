@@ -1,13 +1,13 @@
 import Phaser from 'phaser'
 
 export default class Projectile extends Phaser.GameObjects.Sprite {
-  constructor(scene, x, y, direction, weaponType = 'lance', fromEnemy = false) {
+  constructor(scene, x, y, direction, weaponType = 'lance', fromEnemy = false, damage = null) {
     super(scene, x, y, weaponType)
     this.scene = scene
     this.direction = direction
     this.weaponType = weaponType
     this.fromEnemy = fromEnemy
-    this.damage = this.getDamage()
+    this.damage = damage !== null ? damage : this.getDamage()
     this.lifetime = 3000
     this.spawnTime = scene.time.now
 
