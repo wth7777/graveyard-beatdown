@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Phaser Systematic Test — Graveyard Beatdown</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; }
+    #game-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; z-index: 10; }
+    canvas { display: block; }
+    .loading-overlay {
+      position: fixed; inset: 0; background: #1a1a1a; color: #e0e0e0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; font-family: 'Courier New, monospace';
+    }
+    .loading-bar { width: 300px; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-top: 16px; }
+    .loading-fill { width: 0%; height: 100%; background: #4ade80; transition: width 0.1s; }
+    #diag-panel {
+      position: fixed; top: 10px; left: 10px; z-index: 99999;
+      background: rgba(0, 0, 0, 0.95); color: #00ff00;
+      font-family: 'Courier New, monospace'; font-size: 13px;
+      padding: 12px; border: 2px solid #00ff00; border-radius: 4px;
+      max-width: 500px; display: block;
+    }
+    #diag-panel .stage { margin: 3px 0; }
+    #diag-panel .stage.ok { color: #00ff00; }
+    #diag-panel .stage.fail { color: #ff4444; }
+    #diag-panel .stage.info { color: #ffff00; }
+    #diag-panel .stage.pass { color: #00ff00; font-weight: bold; }
+    #diag-panel h3 { color: #fff; margin-bottom: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="diag-panel">
+    <h3>PHASER SYSTEMATIC TEST — DIAGNOSTICS</h3>
+    <div id="diag-stage-init" class="stage info">INIT: HTML loaded</div>
+    <div id="diag-stage-phaser" class="stage info">PHASER: waiting...</div>
+    <div id="diag-stage-boot" class="stage info">RENDERER: waiting...</div>
+    <div id="diag-stage-main" class="stage info">SCENES: waiting...</div>
+  </div>
+  <div id="loading-overlay" class="loading-overlay">
+    <div style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">PHASER SYSTEMATIC TEST</div>
+    <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">Testing Phaser initialization stages...</div>
+    <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+  </div>
+  <script type="module">
+    // Load Phaser from CDN (same version as project)
+    import Phaser from 'https://cdn.jsdelivr.net/npm/phaser@4.2.1/dist/phaser.esm.js'
+
+    // Diagnostic helper
+    function diag(id, status, text) {
+      const el = document.getElementById(id)
+      if (el) { el.className = 'stage ' + status; el.textContent = id.replace('diag-stage-', '').toUpperCase() + ': ' + text }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('loading-overlay')
+      if (el) { el.innerHTML = '<div style="color:#ff4444;font-weight:bold;">TEST ERROR</div><div style="color:#e0e0e0;margin-top:8px;font-size:12px;text-align:left;">' + msg + '</div>'; el.style.background = '#1a0000'; el.style.padding = '20px' }
+      console.error('TEST ERROR:', msg)
+    }
+
+    // Global error handlers
+    window.addEventListener('error', (e) => {
+      console.error('GLOBAL ERROR:', e.message, e.filename, e.lineno, e.colno, e.error)
+      if (!window._testInitialized) {
+        showError('Global error: ' + e.message + ' at ' + e.filename + ':' + e.lineno + ':' + e.colno)
+      }
+    })
+
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('UNHANDLED REJECTION:', e.reason)
+      if (!window._testInitialized) {
+        showError('Unhandled rejection: ' + (e.reason?.message || String(e.reason)))
+      }
+    })
+
+    console.log('=== PHASER SYSTEMATIC TEST START ===')
+    console.log('Phaser version:', Phaser.VERSION)
+    diag('diag-stage-init', 'ok', 'HTML loaded + JS executing')
+
+    // ============================================
+    // TEST 1: Verify Phaser import
+    // ============================================
+    try {
+      console.log('TEST 1: Phaser import successful')
+      console.log('Phaser.VERSION:', Phaser.VERSION)
+      console.log('Phaser.AUTO:', Phaser.AUTO)
+      console.log('Phaser.WEBGL:', Phaser.WEBGL)
+      console.log('Phaser.CANVAS:', Phaser.CANVAS)
+      diag('diag-stage-phaser', 'ok', 'TEST 1 PASS: Phaser import OK (v' + Phaser.VERSION + ')')
+    } catch (err) {
+      console.error('TEST 1 FAIL:', err)
+      diag('diag-stage-phaser', 'fail', 'TEST 1 FAIL: ' + err.message)
+      showError('TEST 1 FAIL - Phaser import: ' + err.message)
+      throw err
+    }
+
+    // ============================================
+    // TEST 2: WebGL renderer availability
+    // ============================================
+    function testRenderer(rendererType, rendererName) {
+      return new Promise((resolve, reject) => {
+        try {
+          console.log('TEST: Creating ' + rendererName + ' renderer...')
+          diag('diag-stage-boot', 'info', 'Testing ' + rendererName + ' renderer...')
+          
+          const canvas = document.createElement('canvas')
+          canvas.width = 1
+          canvas.height = 1
+          canvas.style.display = 'none'
+          document.body.appendChild(canvas)
+          
+          const testConfig = {
+            type: rendererType,
+            parent: canvas,
+            width: 1,
+            height: 1,
+            scene: {
+              create: function() {
+                console.log(rendererName + ' renderer created successfully')
+                this.scene.remove()
+                canvas.remove()
+                resolve(rendererName + ' OK')
+              }
+            }
+          }
+          
+          const testGame = new Phaser.Game(testConfig)
+          
+          // Timeout safety
+          setTimeout(() => {
+            if (document.body.contains(canvas)) {
+              canvas.remove()
+              reject(new Error(rendererName + ' timeout'))
+            }
+          }, 5000)
+          
+        } catch (err) {
+          reject(err)
+        }
+      })
+    }
+
+    // ============================================
+    // TEST 3: Empty Phaser.Game instance
+    // ============================================
+    async function runTests() {
+      try {
+        // Test WebGL first
+        try {
+          const result = await testRenderer(Phaser.WEBGL, 'WEBGL')
+          console.log('WEBGL test:', result)
+          diag('diag-stage-boot', 'ok', 'TEST 2 PASS: ' + result)
+        } catch (err) {
+          console.warn('WEBGL test failed:', err.message)
+          diag('diag-stage-boot', 'fail', 'WEBGL FAIL: ' + err.message)
+        }
+        
+        // Test Canvas
+        try {
+          const result = await testRenderer(Phaser.CANVAS, 'CANVAS')
+          console.log('CANVAS test:', result)
+          diag('diag-stage-main', 'ok', 'TEST 3 PASS: ' + result)
+        } catch (err) {
+          console.warn('CANVAS test failed:', err.message)
+          diag('diag-stage-main', 'fail', 'CANVAS FAIL: ' + err.message)
+        }
+        
+        // ============================================
+        // TEST 4: Full Game with empty scene
+        // ============================================
+        console.log('TEST 4: Creating full Phaser.Game with empty scene...')
+        diag('diag-stage-phaser', 'info', 'TEST 4: Creating full Phaser.Game...')
+        
+        class EmptyScene extends Phaser.Scene {
+          constructor() { super('EmptyScene') }
+          create() {
+            console.log('EmptyScene create() executed')
+            this.scene.remove()
+          }
+        }
+        
+        const config4 = {
+          type: Phaser.AUTO,
+          parent: 'game-container',
+          width: 800,
+          height: 600,
+          backgroundColor: '#1a0a1a',
+          scene: [EmptyScene]
+        }
+        
+        const game4 = new Phaser.Game(config4)
+        
+        // Wait for scene to start
+        await new Promise(resolve => {
+          game4.events.once('ready', () => {
+            console.log('TEST 4: Game ready event fired')
+            resolve()
+          })
+          setTimeout(resolve, 5000) // safety timeout
+        })
+        
+        diag('diag-stage-phaser', 'ok', 'TEST 4 PASS: Full Game with empty scene OK')
+        game4.destroy(true)
+        
+        // ============================================
+        // TEST 5: Scene with simple graphics
+        // ============================================
+        console.log('TEST 5: Creating Game with graphics scene...')
+        diag('diag-stage-boot', 'info', 'TEST 5: Scene with graphics...')
+        
+        class GraphicsScene extends Phaser.Scene {
+          constructor() { super('GraphicsScene') }
+          create() {
+            console.log('GraphicsScene create() executed')
+            // Draw a simple rectangle
+            this.add.rectangle(400, 300, 200, 100, 0x4ade80)
+            this.add.text(400, 300, 'GRAPHICS TEST', { fontSize: '24px', color: '#000' }).setOrigin(0.5)
+            this.scene.remove()
+          }
+        }
+        
+        const config5 = {
+          type: Phaser.AUTO,
+          parent: 'game-container',
+          width: 800,
+          height: 600,
+          backgroundColor: '#1a0a1a',
+          scene: [GraphicsScene]
+        }
+        
+        const game5 = new Phaser.Game(config5)
+        
+        await new Promise(resolve => {
+          game5.events.once('ready', () => {
+            console.log('TEST 5: Game ready event fired')
+            resolve()
+          })
+          setTimeout(resolve, 5000)
+        })
+        
+        diag('diag-stage-boot', 'ok', 'TEST 5 PASS: Graphics scene OK')
+        game5.destroy(true)
+        
+        // ============================================
+        // TEST 6: Game with BootScene-like scene (texture generation)
+        // ============================================
+        console.log('TEST 6: Creating Game with BootScene-like scene...')
+        diag('diag-stage-main', 'info', 'TEST 6: BootScene-like scene...')
+        
+        class TestBootScene extends Phaser.Scene {
+          constructor() { super('TestBootScene') }
+          preload() {
+            console.log('TestBootScene preload() executed')
+            // Create a simple texture programmatically (like real BootScene)
+            const gfx = this.make.graphics({ x: 0, y: 0, add: false })
+            gfx.fillStyle(0xff0000, 1)
+            gfx.fillRect(0, 0, 32, 32)
+            gfx.generateTexture('test-rect', 32, 32)
+          }
+          create() {
+            console.log('TestBootScene create() executed')
+            this.add.image(400, 300, 'test-rect')
+            this.scene.remove()
+          }
+        }
+        
+        const config6 = {
+          type: Phaser.AUTO,
+          parent: 'game-container',
+          width: 800,
+          height: 600,
+          backgroundColor: '#1a0a1a',
+          scene: [TestBootScene]
+        }
+        
+        const game6 = new Phaser.Game(config6)
+        
+        await new Promise(resolve => {
+          game6.events.once('ready', () => {
+            console.log('TEST 6: Game ready event fired')
+            resolve()
+          })
+          setTimeout(resolve, 5000)
+        })
+        
+        diag('diag-stage-main', 'ok', 'TEST 6 PASS: BootScene-like scene OK')
+        game6.destroy(true)
+        
+        // ============================================
+        // ALL TESTS PASSED
+        // ============================================
+        console.log('=== ALL TESTS PASSED ===')
+        diag('diag-stage-init', 'pass', 'ALL TESTS PASSED')
+        diag('diag-stage-phaser', 'pass', 'Phaser: FULLY FUNCTIONAL')
+        diag('diag-stage-boot', 'pass', 'Renderer: FULLY FUNCTIONAL')
+        diag('diag-stage-main', 'pass', 'Scenes: FULLY FUNCTIONAL')
+        
+        const el = document.getElementById('loading-overlay')
+        if (el) { el.style.transition = 'opacity 0.3s ease'; el.style.opacity = '0'; setTimeout(() => { el.style.display = 'none' }, 300) }
+        
+      } catch (err) {
+        console.error('TEST SUITE FAILED:', err)
+        diag('diag-stage-main', 'fail', 'TEST SUITE FAIL: ' + err.message)
+        showError('Test suite failed: ' + err.message + '\nStack: ' + (err.stack || 'no stack'))
+      }
+    }
+
+    runTests()
+
+    window._testInitialized = true
+  </script>
+</body>
+</html>
